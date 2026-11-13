@@ -335,3 +335,5 @@ dialog textarea { line-height: 1.8; }
 .search .ui-icon { width: 17px; height: 17px; }
 .segmented .ui-icon, #focusBtn .ui-icon { width: 15px; height: 15px; }
 @media (max-width: 760px) { .segmented button { gap: 4px; } .segmented .ui-icon { width: 14px; height: 14px; } }
+
+@media (max-width: 760px) { #focusBtn { display: none; } }
