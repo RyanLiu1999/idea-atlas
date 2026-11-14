@@ -85,13 +85,14 @@ export function chooseOpenPosition(nodes, origin = { x: .44, y: .44 }, minimumCl
   return best;
 }
 
-export function placePointLabels(points, bounds) {
+export function placePointLabels(points, bounds, previous = new Map()) {
   const placed = [];
   const result = new Map();
   const overlap = (a, b) => Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
   for (const point of points) {
     const w = point.width, h = point.height;
-    const choices = [[15, -h / 2], [-w - 15, -h / 2], [-w / 2, -h - 14], [-w / 2, 14], [15, -h - 13], [15, 12], [-w - 15, -h - 13], [-w - 15, 12], [-w / 2, -h - 30], [-w / 2, 30], [15, -h - 36], [-w - 15, -h - 36], [15, 34], [-w - 15, 34], [-w / 2, -h - 52], [-w / 2, 52]];
+    const old = previous.get(point.id);
+    const choices = [...(old?[[old.x,old.y]]:[]),[15, -h / 2], [-w - 15, -h / 2], [-w / 2, -h - 14], [-w / 2, 14], [15, -h - 13], [15, 12], [-w - 15, -h - 13], [-w - 15, 12], [-w / 2, -h - 30], [-w / 2, 30], [15, -h - 36], [-w - 15, -h - 36], [15, 34], [-w - 15, 34], [-w / 2, -h - 52], [-w / 2, 52]];
     let best = null;
     for (let index = 0; index < choices.length; index++) {
       const [dx, dy] = choices[index];

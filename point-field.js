@@ -1,4 +1,5 @@
-import { hashId, createMotion, advanceMotion, moveAnchor, commitPosition, zoomCamera, curveBetween, placePointLabels } from './motion.mjs?v=4';
+import { hashId, createMotion, commitPosition, zoomCamera, curveBetween, placePointLabels } from './motion.mjs?v=5';
+import { GalaxySimulation, computeCentralityMetrics } from './galaxy.mjs?v=5';
 
 const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -13,6 +14,12 @@ export class PointField {
     this.points = new Map();
     this.visible = new Map();
     this.edges = [];
+    this.galaxy = new GalaxySimulation();
+    this.networkNodes = [];
+    this.networkLinks = [];
+    this.metrics = new Map();
+    this.layoutSettled = false;
+    this.labelElapsed = 0;
     this.camera = { scale: 1, x: 0, y: 0 };
     this.dimensions = { width: 1, height: 1, worldWidth: 820, worldHeight: 520 };
     this.pauseReasons = new Set();
@@ -57,10 +64,32 @@ export class PointField {
     return true;
   }
 
-  sync(nodes, links, selectedId) {
+  sync(nodes, links, selectedId, network = {}) {
     this.active = true;
     this.pauseReasons.delete('view');
+    const previousDimensions = this.dimensions;
     if (!this.measure()) return;
+    this.rescaleSimulation(previousDimensions);
+    const previousNetworkIds = new Set(this.networkNodes.map(node=>node.id));
+    this.networkNodes = network.nodes || nodes;
+    this.networkLinks = network.links || links;
+    if (previousNetworkIds.size && this.networkNodes.length && !this.networkNodes.some(node=>previousNetworkIds.has(node.id))) this.layoutSettled=false;
+    this.metrics = network.metrics || computeCentralityMetrics(this.networkNodes, this.networkLinks);
+    const networkIds = new Set(this.networkNodes.map(node => node.id));
+    // A search only hides DOM; the complete physical graph remains intact.
+    // Truly removed ideas are pruned from both the solver and its cache.
+    for (const id of this.points.keys()) if (!networkIds.has(id)) this.points.delete(id);
+    for (const node of this.networkNodes) {
+      let point = this.points.get(node.id);
+      if (!point) { point = { node, motion:createMotion(node.id,this.anchorFor(node)) }; this.points.set(node.id,point); }
+      else { point.node=node; point.motion.anchor=this.anchorFor(node); }
+    }
+    this.galaxy.sync(this.networkNodes.map(node => ({id:node.id,...this.anchorFor(node),pinned:node.pinned})),this.networkLinks,{width:this.dimensions.worldWidth,height:this.dimensions.worldHeight});
+    if (!this.layoutSettled && this.networkNodes.length) {
+      this.galaxy.settle({iterations:80,pairBudget:1_000_000});
+      this.layoutSettled = true;
+    }
+    this.copySimulatedPositions();
     const ids = new Set(nodes.map(node => node.id));
     if (this.previewId && !ids.has(this.previewId)) this.clearPreview();
     if (this.hoveredId && !ids.has(this.hoveredId)) this.hoveredId = null;
@@ -71,30 +100,23 @@ export class PointField {
         this.visible.delete(id);
       }
     }
-    const degree = new Map(nodes.map(node => [node.id, 0]));
-    for (const link of links) {
-      degree.set(link.a.id, degree.get(link.a.id) + 1);
-      degree.set(link.b.id, degree.get(link.b.id) + 1);
-    }
     for (const node of nodes) {
-      let point = this.points.get(node.id);
-      if (!point) {
-        point = { node, motion: createMotion(node.id, this.anchorFor(node)) };
-        this.points.set(node.id, point);
-      } else {
-        point.node = node;
-        moveAnchor(point.motion, this.anchorFor(node));
-      }
+      const point = this.points.get(node.id);
       if (!this.visible.has(node.id)) {
         point.element = this.makePoint(node);
         this.world.append(point.element);
         this.visible.set(node.id, point);
       }
       const color = this.options.colors[node.category] || this.options.colors['未分类'];
+      const metric = this.metrics.get(node.id) || {degree:0,strength:0,coreSize:20,haloSize:48,brightness:.7};
       point.element.style.setProperty('--point-color', color.color);
-      point.element.style.setProperty('--core-size', (20 + Math.min(8, degree.get(node.id) * 1.5)) + 'px');
-      point.element.style.setProperty('--halo-size', (48 + Math.min(24, degree.get(node.id) * 4)) + 'px');
+      point.element.style.setProperty('--core-size', metric.coreSize.toFixed(2)+'px');
+      point.element.style.setProperty('--halo-size', metric.haloSize.toFixed(2)+'px');
+      point.element.style.setProperty('--star-brightness', metric.brightness.toFixed(3));
+      point.element.dataset.degree = String(metric.degree);
+      point.element.dataset.strength = metric.strength.toFixed(3);
       point.element.setAttribute('aria-label', `查看 ${node.title}`);
+      point.element.setAttribute('aria-description', `${metric.degree} 个相似连接；光芒表示网络连接度`);
       point.element.querySelector('.point-label').textContent = node.title;
       point.labelWidth = Math.min(150, Math.max(40, point.element.querySelector('.point-label').scrollWidth));
       point.element.classList.toggle('is-pinned', Boolean(node.pinned));
@@ -105,7 +127,8 @@ export class PointField {
       path.setAttribute('vector-effect', 'non-scaling-stroke');
       path.dataset.source = link.a.id;
       path.dataset.target = link.b.id;
-      path.style.setProperty('--edge-opacity', (.14 + link.value / 330).toFixed(2));
+      path.style.setProperty('--edge-opacity', (.12 + link.value / 190).toFixed(2));
+      path.style.strokeWidth = (.45 + link.value / 160).toFixed(2)+'px';
       return { ...link, path, bend: (hashId(link.a.id + link.b.id) % 25) - 12 };
     });
     this.svg.replaceChildren(...this.edges.map(edge => edge.path));
@@ -117,6 +140,30 @@ export class PointField {
     } else this.updateCamera();
     this.paint();
     this.wake();
+  }
+
+  copySimulatedPositions(positions = this.galaxy.positions) {
+    for (const [id,position] of positions) {
+      const point = this.points.get(id);
+      if (point) point.motion.position = { ...position };
+    }
+  }
+
+  rescaleSimulation(previous) {
+    const next = this.dimensions;
+    if (previous.worldWidth === next.worldWidth && previous.worldHeight === next.worldHeight) return;
+    // This is a coordinate-space resize, not a change to saved anchors or forces.
+    for (const [id,point] of this.points) {
+      const p = this.galaxy.getPosition(id) || point.motion.position;
+      const position = {
+        x:64+(p.x-64)*(next.worldWidth-128)/(previous.worldWidth-128),
+        y:64+(p.y-64)*(next.worldHeight-136)/(previous.worldHeight-136)
+      };
+      this.galaxy.setPosition(id,position,{preserveVelocity:true});
+      point.motion.position=position;
+      point.motion.anchor=this.anchorFor(point.node);
+    }
+    this.galaxy.resize(next.worldWidth,next.worldHeight);
   }
 
   makePoint(node) {
@@ -171,8 +218,12 @@ export class PointField {
     if (!this.canAnimate()) { this.previousTime = null; return; }
     const elapsed = this.previousTime === null ? 0 : Math.min(.05, Math.max(0, (time - this.previousTime) / 1000));
     this.previousTime = time;
-    for (const point of this.visible.values()) advanceMotion(point.motion, elapsed, this.frozen(point));
+    const frozenIds = new Set([...this.points].filter(([,point])=>this.frozen(point)).map(([id])=>id));
+    const positions = this.galaxy.step(elapsed,{frozenIds});
+    this.copySimulatedPositions(positions);
     this.paint();
+    this.labelElapsed += elapsed;
+    if (this.labelElapsed >= .45) { this.labelElapsed=0; this.layoutLabels(); }
     this.frameId = requestAnimationFrame(next => this.frame(next));
   }
 
@@ -181,7 +232,7 @@ export class PointField {
     for (const point of this.visible.values()) {
       const { x, y } = point.motion.position;
       point.element.style.transform = `translate3d(${(x - halfHit).toFixed(3)}px, ${(y - halfHit).toFixed(3)}px, 0)`;
-      point.element.dataset.motion = this.isGloballyPaused() || this.frozen(point) ? 'paused' : 'floating';
+      point.element.dataset.motion = this.isGloballyPaused() || this.frozen(point) ? 'paused' : 'orbiting';
     }
     for (const edge of this.edges) {
       const a = this.visible.get(edge.a.id), b = this.visible.get(edge.b.id);
@@ -218,8 +269,10 @@ export class PointField {
   }
 
   updateEmphasis() {
-    const id = this.hoveredId || this.focusedId || this.touchPreviewId || this.selectedId;
+    const id = [this.gesture?.id,this.hoveredId,this.focusedId,this.touchPreviewId,this.selectedId].find(candidate=>candidate&&this.visible.has(candidate)) || null;
     const nearby = new Set([id]);
+    this.world.classList.toggle('has-active',Boolean(id));
+    this.graph.classList.toggle('has-active',Boolean(id));
     for (const edge of this.edges) {
       const active = edge.a.id === id || edge.b.id === id;
       edge.path.classList.toggle('is-related', Boolean(id && active));
@@ -228,9 +281,10 @@ export class PointField {
     }
     for (const [pointId, point] of this.visible) {
       point.element.classList.toggle('is-selected', pointId === this.selectedId);
-      point.element.classList.toggle('is-hovered', pointId === this.hoveredId || pointId === this.focusedId || pointId === this.touchPreviewId);
+      point.element.classList.toggle('is-active', pointId === id);
+      point.element.classList.toggle('is-hovered', pointId === id && id !== this.selectedId);
       point.element.classList.toggle('is-neighbor', Boolean(id && pointId !== id && nearby.has(pointId)));
-      point.element.classList.toggle('is-dim', Boolean(id && !nearby.has(pointId)));
+      point.element.classList.toggle('is-dim', Boolean(id && pointId !== id));
       point.element.setAttribute('aria-expanded', String(pointId === this.selectedId));
     }
   }
@@ -285,7 +339,7 @@ export class PointField {
     this.previewId = id;
     const node = point.node;
     const color = this.options.colors[node.category] || this.options.colors['未分类'];
-    const connections = this.edges.filter(edge => edge.a.id === id || edge.b.id === id).length;
+    const connections = this.metrics.get(id)?.degree || 0;
     this.preview.style.setProperty('--preview-color', color.color);
     this.preview.innerHTML = `<div class="preview-eyebrow"><i></i>${safe(node.category)}<span>${connections} 条相似关联</span></div><h3>${safe(node.title)}</h3><p id="previewSummary">${safe(node.summary)}</p><div class="preview-footer"><span>${safe(node.type)}</span><button type="button" id="previewOpen">查看详情 <span aria-hidden="true">↗</span></button></div>`;
     this.preview.hidden = false;
@@ -386,6 +440,7 @@ export class PointField {
       if (this.gesture?.pointerId === event.pointerId) { this.moveGesture(event); return; }
       if (event.pointerType === 'touch') return;
       this.keyboardMode = false;
+      this.focusedId = null;
       const id = this.nearest(event);
       if (id) this.enterHover(id); else this.leaveHover();
     });
@@ -404,7 +459,7 @@ export class PointField {
       this.previewHovered = true;
       clearTimeout(this.leaveTimer);
       this.leaveTimer = null;
-      if (this.previewId) this.hoveredId = this.previewId;
+      if (this.previewId) { this.hoveredId = this.previewId; this.updateEmphasis(); this.paint(); }
     });
     this.preview.addEventListener('pointerleave', () => { this.previewHovered = false; this.leaveHover(); });
     this.preview.addEventListener('focusout', event => {
@@ -432,11 +487,11 @@ export class PointField {
   updateMotionControl() {
     const stopped = this.reduced.matches || this.userPaused;
     this.motionButton.setAttribute('aria-pressed', String(stopped));
-    this.motionButton.innerHTML = this.reduced.matches ? '<span aria-hidden="true">◉</span> 已减少动态' : stopped ? '<span aria-hidden="true">▷</span> 恢复浮动' : '<span aria-hidden="true">Ⅱ</span> 暂停浮动';
+    this.motionButton.innerHTML = this.reduced.matches ? '<span aria-hidden="true">◉</span> 已减少动态' : stopped ? '<span aria-hidden="true">▷</span> 恢复环绕' : '<span aria-hidden="true">Ⅱ</span> 暂停环绕';
     this.graph.classList.toggle('motion-stopped', stopped);
-    document.querySelector('#motionStatus').textContent = stopped ? '静止探索' : '缓慢浮动';
-    document.querySelector('#fieldInstruction').textContent = this.coarse.matches ? '轻点光点预览 · 再次轻点查看详情' : '悬停光点，停住一个想法 · 点击深入';
-    document.querySelector('#graphInstructions').textContent = this.coarse.matches ? '轻点预览，再次轻点查看详情。拖动空白平移，可切换列表浏览。' : '悬停光点或用 Tab 聚焦可暂停并预览。点击或按 Enter 查看详情。按 Escape 返回。';
+    document.querySelector('#motionStatus').textContent = stopped ? '静止探索' : '星系缓慢环绕';
+    document.querySelector('#fieldInstruction').textContent = this.coarse.matches ? '轻点聚焦一颗星 · 再次轻点查看详情' : '悬停聚焦一颗星 · 点击深入 · 光芒映照联结';
+    document.querySelector('#graphInstructions').textContent = this.coarse.matches ? '轻点预览，其他星点暗淡，再次轻点查看详情。拖动空白平移，可切换列表浏览。' : '星点按相似关系缓慢吸引并环绕，光芒大小表示连接度。悬停或 Tab 聚焦可暂停目标并预览，其他星点暗淡。点击或 Enter 查看详情，Escape 返回。';
   }
 
   startGesture(event) {
@@ -458,6 +513,7 @@ export class PointField {
       this.updateEmphasis();
       this.setGlobalPause('pan', true);
     }
+    this.updateEmphasis();
     this.paint();
   }
 
@@ -484,6 +540,7 @@ export class PointField {
         x: Math.max(64, Math.min(this.dimensions.worldWidth - 64, gesture.position.x + dx / this.camera.scale)),
         y: Math.max(64, Math.min(this.dimensions.worldHeight - 72, gesture.position.y + dy / this.camera.scale)),
       };
+      this.galaxy.setPosition(gesture.id,point.motion.position);
     }
     this.paint();
   }
@@ -499,6 +556,7 @@ export class PointField {
       const point = this.visible.get(gesture.id);
       if (point && !point.node.pinned) {
         commitPosition(point.motion, point.motion.position);
+        this.galaxy.setPosition(gesture.id,point.motion.position);
         this.options.onMove(gesture.id, {
           x: (point.motion.anchor.x - 64) / (this.dimensions.worldWidth - 128),
           y: (point.motion.anchor.y - 64) / (this.dimensions.worldHeight - 136),
@@ -533,7 +591,10 @@ export class PointField {
     this.gesture = null;
     this.clearHover();
     this.clearPreview();
-    if (gesture.id && this.visible.has(gesture.id)) this.visible.get(gesture.id).motion = gesture.originalMotion;
+    if (gesture.id && this.visible.has(gesture.id)) {
+      this.visible.get(gesture.id).motion = gesture.originalMotion;
+      this.galaxy.setPosition(gesture.id,gesture.originalMotion.position);
+    }
     if (!gesture.id) this.camera = gesture.camera;
     if (this.graph.hasPointerCapture(gesture.pointerId)) this.graph.releasePointerCapture(gesture.pointerId);
     this.graph.classList.remove('is-dragging');
@@ -557,6 +618,7 @@ export class PointField {
 
   updateCamera() {
     const { scale, x, y } = this.camera;
+    this.galaxy.setZoom(scale);
     const transform = `translate(${x}px, ${y}px) scale(${scale})`;
     this.world.style.transform = transform;
     this.svg.style.transform = transform;
@@ -572,9 +634,11 @@ export class PointField {
       id, x: point.motion.position.x * scale + x, y: point.motion.position.y * scale + y,
       width: point.labelWidth || 100, height: 17,
     }));
-    const positions = placePointLabels(entries, this.dimensions);
+    const previous = new Map([...this.visible].filter(([,point])=>point.labelOffset).map(([id,point])=>[id,point.labelOffset]));
+    const positions = placePointLabels(entries, this.dimensions,previous);
     for (const [id, position] of positions) {
       const label = this.visible.get(id).element.querySelector('.point-label');
+      this.visible.get(id).labelOffset = position;
       label.style.transform = `translate(${position.x / scale}px, ${position.y / scale}px) scale(${1 / scale})`;
     }
   }
@@ -595,6 +659,7 @@ export class PointField {
     const point = this.visible.get(id);
     if (!point) return;
     commitPosition(point.motion, point.motion.position);
+    this.galaxy.setPosition(id,point.motion.position);
     this.options.onMove(id, {
       x: (point.motion.anchor.x - 64) / (this.dimensions.worldWidth - 128),
       y: (point.motion.anchor.y - 64) / (this.dimensions.worldHeight - 136),
@@ -602,8 +667,10 @@ export class PointField {
   }
 
   resize() {
+    if (this.gesture) this.cancelGesture();
+    const previousDimensions = this.dimensions;
     if (!this.active || !this.measure()) return;
-    for (const point of this.points.values()) moveAnchor(point.motion, this.anchorFor(point.node));
+    this.rescaleSimulation(previousDimensions);
     this.clearHover();
     this.clearPreview();
     this.fitView();

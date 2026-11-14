@@ -1,0 +1,196 @@
+/* Load last, after ios.css. Only the knowledge canvas becomes a night sky. */
+#canvasShell {
+  background: #101a30;
+  border-color: #172740;
+  box-shadow: 0 8px 30px #14203c12, inset 0 1px 0 #ffffff05;
+  isolation: isolate;
+}
+#graph {
+  background:
+    radial-gradient(ellipse at 23% 37%, #26365355, transparent 57%),
+    radial-gradient(ellipse at 76% 26%, #213f4240, transparent 50%),
+    radial-gradient(ellipse at 65% 83%, #37304d48, transparent 55%),
+    linear-gradient(140deg, #101b31, #0d172b 58%, #111a30);
+}
+/* Static dust: no repeating grid, pulsing stars, or extra motion layer. */
+#graph::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: .65;
+  background:
+    radial-gradient(circle at 6% 18%, #a8bddc75 0 .6px, transparent 1.4px),
+    radial-gradient(circle at 14% 69%, #aabdd653 0 .5px, transparent 1.3px),
+    radial-gradient(circle at 21% 11%, #a3b8d74d 0 .5px, transparent 1.2px),
+    radial-gradient(circle at 29% 83%, #d3d8ed63 0 .6px, transparent 1.4px),
+    radial-gradient(circle at 36% 27%, #c2cbe65e 0 .6px, transparent 1.4px),
+    radial-gradient(circle at 43% 62%, #9fb8d54d 0 .5px, transparent 1.2px),
+    radial-gradient(circle at 51% 14%, #a7c4d35e 0 .5px, transparent 1.3px),
+    radial-gradient(circle at 59% 89%, #adbbd757 0 .6px, transparent 1.4px),
+    radial-gradient(circle at 65% 44%, #c3cce66b 0 .6px, transparent 1.5px),
+    radial-gradient(circle at 74% 9%, #c0d3d55c 0 .5px, transparent 1.3px),
+    radial-gradient(circle at 78% 72%, #a5b9d74d 0 .5px, transparent 1.2px),
+    radial-gradient(circle at 87% 31%, #b0c1e26b 0 .6px, transparent 1.4px),
+    radial-gradient(circle at 93% 84%, #d4c8df53 0 .5px, transparent 1.3px),
+    radial-gradient(circle at 8% 47%, #9eb7d83e 0 .5px, transparent 1.2px),
+    radial-gradient(circle at 48% 44%, #9eb4d03e 0 .5px, transparent 1.2px),
+    radial-gradient(circle at 94% 56%, #aab8d14d 0 .5px, transparent 1.2px);
+}
+#graph .ambient-one {
+  width: 57%; height: 80%; left: -5%; top: 7%;
+  background: radial-gradient(ellipse, #3f4d7e22, #3444680a 46%, transparent 73%);
+}
+#graph .ambient-two {
+  width: 62%; height: 82%; right: -7%; top: -11%;
+  background: radial-gradient(ellipse, #42736b19, #325a5909 49%, transparent 76%);
+}
+#graph .ambient-three {
+  width: 68%; height: 67%; right: 9%; bottom: -10%;
+  background: radial-gradient(ellipse, #74517f1d, #5138600a 50%, transparent 77%);
+}
+#canvasShell #edges .connection {
+  stroke: #7394bb;
+  opacity: calc(var(--edge-opacity, .3) * .72);
+  stroke-width: .65;
+}
+#canvasShell #edges .connection.is-related { stroke: #a0bbdd; opacity: .62; stroke-width: .9; }
+#canvasShell #edges .connection.is-dim { opacity: .035; }
+#world .idea-point {
+  --star-brightness: 1;
+  --core-size: 22px;
+  --halo-size: 58px;
+  --star-tint: color-mix(in srgb, var(--point-color, #92a6cd) 70%, #d3e1fb);
+  opacity: 1;
+  transition: opacity 220ms ease-out;
+}
+#world .idea-point .point-core {
+  width: calc(var(--core-size) * var(--inverse-scale));
+  height: calc(var(--core-size) * var(--inverse-scale));
+  background: radial-gradient(ellipse 50% 46% at 50% 50%,
+    color-mix(in srgb, var(--star-tint) 95%, transparent) 0%,
+    color-mix(in srgb, var(--star-tint) 83%, transparent) 12%,
+    color-mix(in srgb, var(--star-tint) 57%, transparent) 32%,
+    color-mix(in srgb, var(--star-tint) 26%, transparent) 53%,
+    color-mix(in srgb, var(--star-tint) 6%, transparent) 76%, transparent 100%);
+  opacity: clamp(.4, calc(.55 + var(--star-brightness) * .3), 1);
+  filter: blur(calc(.8px * var(--inverse-scale)));
+  box-shadow: none;
+  border: 0;
+}
+#world .idea-point .point-core::before,
+#world .idea-point .point-core::after { content: none; display: none; }
+#world .idea-point .point-halo {
+  width: calc(var(--halo-size) * var(--inverse-scale));
+  height: calc(var(--halo-size) * var(--inverse-scale));
+  background: radial-gradient(ellipse 48% 43% at 50% 50%,
+    color-mix(in srgb, var(--point-color, #92a6cd) 38%, transparent) 0%,
+    color-mix(in srgb, var(--point-color, #92a6cd) 23%, transparent) 22%,
+    color-mix(in srgb, var(--point-color, #92a6cd) 10%, transparent) 47%,
+    color-mix(in srgb, var(--point-color, #92a6cd) 2%, transparent) 74%, transparent 100%);
+  opacity: clamp(.25, calc(var(--star-brightness) * .65), 1);
+  filter: blur(calc(3px * var(--inverse-scale)));
+}
+#world .idea-point .point-orbit {
+  background: radial-gradient(ellipse 48% 43% at 50% 50%,
+    color-mix(in srgb, var(--star-tint) 30%, transparent),
+    color-mix(in srgb, var(--point-color, #92a6cd) 8%, transparent) 55%, transparent 100%);
+  border: 0;
+  box-shadow: none;
+  opacity: 0;
+}
+#world .idea-point.is-neighbor .point-orbit { opacity: 0; }
+#world .idea-point.is-active .point-orbit { opacity: 1; }
+#world .idea-point.is-active .point-core { opacity: 1; transform: scale(1.12); }
+#world .idea-point .point-label {
+  color: #aab5c9;
+  opacity: 1;
+  text-shadow: 0 1px 5px #091020, 0 0 12px #101a30;
+  font-size: 11px;
+}
+#world .idea-point.is-active .point-label { color: #e1e9f7; }
+#world .idea-point:focus-visible { outline: none; }
+#world .idea-point:focus-visible .point-label {
+  text-decoration-color: #accbff;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+/* JS chooses exactly one activeId; dim the entire node, INCLUDING neighbors. */
+#world.has-active .idea-point:not(.is-active) {
+  opacity: .19;
+}
+#world.has-active .idea-point.is-active { opacity: 1; }
+#graph .cluster { color: #7b8daa; opacity: .45; }
+#graph .cluster span { color: #73829e; }
+#canvasShell .canvas-label strong { color: #c3cee2; }
+#canvasShell .canvas-label #graphStats { color: #889ab8; }
+#canvasShell .canvas-label .statusdot { background: #91acd4; }
+#canvasShell .canvas-actions { gap: 8px; }
+#canvasShell .canvas-actions button {
+  color: #b5c6e4;
+  padding: 5px 10px;
+  min-height: 34px;
+  border: 1px solid #b1caef14;
+  border-radius: 9px;
+  background: #23324b80;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+#canvasShell .canvas-actions button:hover { color: #e1ecff; background: #2b405bba; }
+#canvasShell .canvas-actions .control-divider { background: #b1c9ed1f; }
+#canvasShell .field-state { color: #a5b6d1; }
+#canvasShell .field-state i { background: #839fc5; }
+#canvasShell .field-state .drag-hint { color: #7f92af; border-color: #acc7ec1c; }
+#canvasShell .field-instruction { color: #8da0bf; }
+#canvasShell .zoom {
+  background: #1e2d44df;
+  border-color: #a4c2ef1c;
+  box-shadow: 0 4px 14px #030a172b;
+}
+#canvasShell .zoom button { color: #b3c9e9; }
+#canvasShell .zoom output { color: #adbcce; }
+#canvasShell .zoom button:last-child { border-color: #a4c2ef1c; }
+#canvasShell #emptyGraph { color: #bcc9de; }
+#nodePreview {
+  background: #1a2941f2;
+  border-color: #aec9ef24;
+  box-shadow: 0 14px 50px #020a1c5c, inset 0 1px 0 #d6e5ff07;
+  backdrop-filter: blur(30px) saturate(135%);
+  -webkit-backdrop-filter: blur(30px) saturate(135%);
+}
+#nodePreview .preview-eyebrow { color: #a0b4d0; }
+#nodePreview .preview-eyebrow>span { color: #8a9fbd; }
+#nodePreview h3 { color: #e0e9f8; }
+#nodePreview p { color: #aabbcf; }
+#nodePreview .preview-footer { border-color: #b4d0f31b; }
+#nodePreview .preview-footer>span { color: #9aaeca; }
+#nodePreview .preview-footer button { color: #a7c9fb; }
+#nodePreview .preview-footer button:hover { color: #e0edff; }
+#nodePreview:focus-within { border-color: #7ca5db8c; }
+#nodePreview button:focus-visible,
+#canvasShell .canvas-actions button:focus-visible,
+#canvasShell .zoom button:focus-visible { outline-color: #a9cbff; }
+@media (max-width: 760px) {
+  #canvasShell .canvas-label strong { font-size: 11px; }
+  #canvasShell .canvas-actions button { min-height: 40px; padding: 5px 8px; font-size: 10px; }
+  #canvasShell .canvas-actions #resetView { width: 30px; padding: 5px; font-size: 0; }
+  #canvasShell .canvas-top { left: 15px; right: 15px; }
+  #canvasShell .field-state { font-size: 10px; }
+  #canvasShell .field-instruction { font-size: 10px; letter-spacing: .2px; }
+  #world .idea-point .point-label { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #world .idea-point, #world .idea-point *, #nodePreview { animation: none; transition: none; }
+}
+@media (forced-colors: active) {
+  #canvasShell, #graph, #nodePreview { background: Canvas; border-color: CanvasText; }
+  #graph::before, #graph .ambient { display: none; }
+  #world .idea-point .point-core { background: ButtonText; opacity: 1; filter: none; }
+  #world .idea-point .point-label { color: ButtonText; text-shadow: none; }
+  #world.has-active .idea-point:not(.is-active) { opacity: 1; }
+  #world .idea-point:focus-visible .point-label { outline: 2px solid Highlight; outline-offset: 3px; }
+  #canvasShell .canvas-actions button, #canvasShell .zoom, #nodePreview .preview-footer button { background: Canvas; color: LinkText; border-color: ButtonText; }
+  #nodePreview h3, #nodePreview p, #nodePreview .preview-eyebrow, #nodePreview .preview-footer>span,
+  #canvasShell .canvas-label strong, #canvasShell .field-state, #canvasShell .field-instruction { color: CanvasText; }
+}

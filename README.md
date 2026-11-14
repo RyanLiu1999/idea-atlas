@@ -1,6 +1,6 @@
 # Idea Atlas
 
-A personal research and idea network with an iOS inspired interface, slowly floating soft lights, quiet persistent names, hover previews and complete local source documents.
+A personal research and idea network with an iOS inspired interface, a softly glowing orbital galaxy, quiet persistent names, hover previews and complete local source documents.
 
 Live site: https://ryanliu1999.github.io/idea-atlas/
 
@@ -14,9 +14,12 @@ Publish the `main` branch, `/ (root)` directory in Settings → Pages. All asset
 
 ## Features
 
-- Soft diffuse lights with persistent gray labels and automatic label placement.
+- A midnight blue canvas with soft stardust and diffuse lights. Every idea is illuminated normally; hovering or focusing one star highlights it and dims all others, including its neighbors.
 - Hover to pause and preview; click for details. On touch, tap to preview and tap again to open.
-- Stable floating motion, pan/zoom, keyboard navigation and reduced-motion support.
+- Weighted attraction, repulsion and slow orbital motion: stronger matches have stiffer attraction and shorter ideal distances. Conflicting links, collisions and pinned positions also affect the final geometry.
+- Connection count alone determines star size and brightness. Metrics and physics use the complete working collection's 30+ similarity suggestions, independent of search, category filters and the visible-edge slider. The graph combines each idea's top three qualifying neighbors.
+- Pan/zoom, keyboard navigation and reduced-motion support. Hover/selection freezes the target while other stars continue; explicit pause, background tabs and reading dialogs stop simulation. Labels update at a limited rate and retain their placements when possible.
+- Saved x/y values remain spatial anchors. Animation never persists its positions or velocities; dragging explicitly saves an anchor, and pinning keeps a star still. Existing original documents and workspace schema are unchanged.
 - Long Markdown/TXT reports become one idea per document, with all original text retained independently of the editable summary. Generic section titles get a suggested topical title; unknown attributes remain unknown.
 - Local title, extractive summary, domain, mechanism, scenario and keyword suggestions include excerpts as their extraction basis. Import directly with a review status, or use the inbox.
 - Same contents under another filename are skipped using a fingerprint plus normalized full-text comparison. Different contents sharing one filename remain separate. User edits are never replaced on reimport.
@@ -36,4 +39,6 @@ Different hosting origins have separate browser storage. To move existing ideas 
 
 ## Modules
 
-`import-engine.mjs` extracts report structure and source evidence; `ingest.mjs` stages File objects without persisting or mutating a workspace; `workspace-store.mjs` manages transactions and backup validation; `document-view.mjs` safely renders text; `relations.mjs` calculates explainable suggestions; `motion.mjs` and `point-field.js` control visual motion.
+`import-engine.mjs` extracts report structure and source evidence; `ingest.mjs` stages File objects without persisting or mutating a workspace; `workspace-store.mjs` manages transactions and backup validation; `document-view.mjs` safely renders text; `relations.mjs` calculates explainable suggestions; `galaxy.mjs` implements bounded deterministic physics and connection metrics; `motion.mjs` and `point-field.js` handle the camera, labels and interaction.
+
+The physical solver is bounded to 500 dynamic bodies and 4,000 edges by default. Larger libraries retain all documents and ideas; excess points remain available as static points and in the list. Initial relaxation has a fixed pair-work budget. This is a two dimensional visual layout, not an embedding or a physical measurement of semantic truth.
