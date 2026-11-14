@@ -1,5 +1,5 @@
-import { hashId, createMotion, commitPosition, zoomCamera, curveBetween, placePointLabels } from './motion.mjs?v=6';
-import { GalaxySimulation, computeCentralityMetrics } from './galaxy.mjs?v=6';
+import { hashId, createMotion, commitPosition, zoomCamera, curveBetween, placePointLabels } from './motion.mjs?v=7';
+import { GalaxySimulation, computeCentralityMetrics } from './galaxy.mjs?v=7';
 
 const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -93,6 +93,8 @@ export class PointField {
       else { point.node=node; point.motion.anchor=this.anchorFor(node); }
     }
     this.galaxy.sync(this.networkNodes.map(node => ({id:node.id,...this.anchorFor(node),pinned:node.pinned})),this.networkLinks,{width:this.dimensions.worldWidth,height:this.dimensions.worldHeight});
+    const initialScale = Math.min(1, this.dimensions.width / this.dimensions.worldWidth, this.dimensions.height / this.dimensions.worldHeight);
+    this.galaxy.setZoom(this.initialized ? this.camera.scale : initialScale);
     if (!this.layoutSettled && this.networkNodes.length) {
       this.galaxy.settle({iterations:80,pairBudget:1_000_000});
       this.layoutSettled = true;
@@ -184,6 +186,7 @@ export class PointField {
     for (const group of this.galaxy.clusters.values()) {
       if (group.members.length < 2 || !group.members.some(id => visibleIds.has(id))) continue;
       for (const hubId of group.hubIds) {
+        if (!visibleIds.has(hubId)) continue;
         const hub = this.points.get(hubId), metric = this.metrics.get(hubId);
         if (!hub || !metric?.degree) continue;
         const element = this.auras.get(hubId)?.element || document.createElement('div');
@@ -548,7 +551,7 @@ export class PointField {
     this.graph.classList.toggle('motion-stopped', stopped);
     document.querySelector('#motionStatus').textContent = stopped ? '静止探索' : '局部星团缓慢环绕';
     document.querySelector('#fieldInstruction').textContent = this.coarse.matches ? '轻点预览 · 再次轻点深入 · 顶部按钮唤起工具' : '悬停聚焦 · 点击深入 · 靠近边缘唤起工具';
-    document.querySelector('#graphInstructions').textContent = this.coarse.matches ? '相关星点围绕局部引力中心缓慢环绕。轻点预览，其他星点暗淡，再次轻点查看详情。拖动空白平移，点击左上菜单或右上搜索打开工具。' : '相关星点围绕多个局部加权平衡中心缓慢环绕，光芒大小表示连接度。悬停或 Tab 聚焦可暂停目标并预览，其他星点暗淡。点击或 Enter 查看详情，Escape 返回。点击左上菜单或右上搜索打开工具，也可悬停左边缘或顶部。';
+    document.querySelector('#graphInstructions').textContent = this.coarse.matches ? '相关星点围绕局部引力中心缓慢环绕，无直接连接的星点在靠近时更强排斥。轻点预览，其他星点暗淡，再次轻点查看详情。拖动空白平移，点击左上菜单或右上搜索打开工具。' : '相关星点围绕多个局部加权平衡中心缓慢环绕，无直接连接的星点在靠近时更强排斥，光芒大小表示连接度。悬停或 Tab 聚焦可暂停目标并预览，其他星点暗淡。点击或 Enter 查看详情，Escape 返回。点击左上菜单或右上搜索打开工具，也可悬停左边缘或顶部。';
   }
 
   startGesture(event) {

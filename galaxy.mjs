@@ -3,7 +3,7 @@
  * Strong similarity changes both spring stiffness and ideal distance; screen
  * distance remains a layout approximation because collisions/other edges compete.
  */
-import { hashId } from './motion.mjs?v=6';
+import { hashId } from './motion.mjs?v=7';
 const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
 const finite=(n,fallback=0)=>Number.isFinite(n)?n:fallback;
 const endpoint=n=>n&&typeof n==='object'?n.id:n;
@@ -11,6 +11,19 @@ function idsOf(link){return [endpoint(link?.a??link?.source),endpoint(link?.b??l
 export function linkPhysics(link) {
   const weight=Number.isFinite(link?.value)?clamp(link.value/100,0,1):clamp(finite(link?.weight),0,1);
   return {weight,idealDistance:240-150*weight,stiffness:.004+.056*weight*weight};
+}
+/** Radial pair force in world coordinates. A missing direct edge means no edge
+ * in the complete simulation graph, not an assertion of semantic unrelatedness.
+ * The added non-edge force has finite range/cap. Callers may convert its range
+ * from screen clearance to world units; camera zoom never changes connectedness.
+ */
+export function pairRepulsion(distance,{connected=false,crossCluster=false,repulsion=1400,collisionDistance=58,collisionStrength=.38,nonLinkedStrength=18,nonLinkedRange=210,crossClusterBoost=1.35}={}) {
+ const d=Math.max(0,finite(distance)),range=Math.max(1,finite(nonLinkedRange,210));
+ const base=Math.max(0,finite(repulsion))/Math.max(144,d*d);
+ const collision=Math.max(0,finite(collisionDistance)-d)*Math.max(0,finite(collisionStrength));
+ const falloff=Math.max(0,1-d/range);
+ const nonLinked=connected?0:Math.max(0,finite(nonLinkedStrength))*falloff*falloff*(crossCluster?Math.max(1,finite(crossClusterBoost,1.35)):1);
+ return {base,collision,nonLinked,total:base+collision+nonLinked,connected:Boolean(connected)};
 }
 function uniqueLinks(links,ids,maxEdges=4000){
  const pairs=new Map();
@@ -67,8 +80,8 @@ export function detectCommunities(nodes, links) {
 
 export class GalaxySimulation {
  constructor(options={}){
-  this.options={orbitSpeed:4.5,minSpeed:2,maxSpeed:8,damping:1.15,springScale:1,repulsion:1400,collisionDistance:58,collisionStrength:.38,centerStrength:.00032,padding:64,maxNodes:500,maxEdges:4000,...options};
-  for(const key of ['orbitSpeed','minSpeed','maxSpeed','damping','springScale','repulsion','collisionDistance','collisionStrength','centerStrength','padding'])this.options[key]=Math.max(0,finite(this.options[key]));
+  this.options={orbitSpeed:4.5,minSpeed:2,maxSpeed:8,damping:1.15,springScale:1,repulsion:1400,collisionDistance:58,collisionStrength:.38,nonLinkedStrength:18,nonLinkedRange:210,crossClusterBoost:1.35,clusterBuffer:70,clusterRepulsion:.045,clusterCohesion:.065,clusterOrbitRadius:145,wallMargin:60,wallStrength:10,centerStrength:.00032,padding:64,maxNodes:500,maxEdges:4000,...options};
+  for(const key of ['orbitSpeed','minSpeed','maxSpeed','damping','springScale','repulsion','collisionDistance','collisionStrength','nonLinkedStrength','nonLinkedRange','crossClusterBoost','clusterBuffer','clusterRepulsion','clusterCohesion','clusterOrbitRadius','wallMargin','wallStrength','centerStrength','padding'])this.options[key]=Math.max(0,finite(this.options[key]));
   this.options.maxSpeed=Math.max(.1,this.options.maxSpeed);this.options.minSpeed=Math.min(this.options.minSpeed,this.options.maxSpeed);
   this.options.maxNodes=clamp(Math.floor(finite(this.options.maxNodes,500)),1,1000);this.options.maxEdges=clamp(Math.floor(finite(this.options.maxEdges,4000)),0,10000);
   this.bodies=new Map();this.links=[];this._clusters=new Map();this.adjacency=new Map();this.topology='';this.width=820;this.height=520;this.zoom=1;this.stats={nodes:0,links:0,truncated:0,modularity:0};
@@ -171,14 +184,15 @@ export class GalaxySimulation {
   const collisionDistance=o.collisionDistance/this.zoom;
   for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++){
    const a=bodies[i],b=bodies[j];let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d<.001){const angle=(hashId(a.id+'|'+b.id)%6283)/1000;dx=Math.cos(angle);dy=Math.sin(angle);d=1;}
-   const repulsion=o.repulsion/Math.max(144,d*d)+Math.max(0,collisionDistance-d)*o.collisionStrength;
+   const connected=this.adjacency.get(a.id)?.has(b.id)===true;
+   const repulsion=pairRepulsion(d,{connected,crossCluster:a.clusterId!==b.clusterId,repulsion:o.repulsion,collisionDistance,collisionStrength:o.collisionStrength,nonLinkedStrength:o.nonLinkedStrength,nonLinkedRange:o.nonLinkedRange/clamp(this.zoom,.35,2.2),crossClusterBoost:o.crossClusterBoost}).total;
    add(a.id,-dx/d*repulsion,-dy/d*repulsion);add(b.id,dx/d*repulsion,dy/d*repulsion);
   }
   // Community exclusion acts on centers, not on one global origin.
   const clusters=[...this._clusters.values()];
   for(let i=0;i<clusters.length;i++)for(let j=i+1;j<clusters.length;j++){
    const ca=clusters[i],cb=clusters[j],a=this.bodies.get(ca.hubId),b=this.bodies.get(cb.hubId);let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(d<1){const angle=hashId(ca.id+'|'+cb.id)%6283/1000;dx=Math.cos(angle);dy=Math.sin(angle);d=1;}
-   const force=Math.max(0,ca.radius+cb.radius+25-d)*.012;
+   const force=Math.max(0,ca.radius+cb.radius+o.clusterBuffer-d)*o.clusterRepulsion;
    for(const id of ca.members)add(id,-dx/d*force,-dy/d*force);for(const id of cb.members)add(id,dx/d*force,dy/d*force);
   }
   const attractors=new Map(bodies.map(b=>[b.id,this.getAttractor(b.id)])),bounds=this.bounds();
@@ -192,14 +206,27 @@ export class GalaxySimulation {
    const gravity=o.centerStrength*(b.isHub?2:Math.min(5,a.equilibriumGravity??a.gravity));
    let ax=(f.x/Math.sqrt(b.mass)-rx*gravity)*forceScale+(tx-b.vx)*o.damping;
    let ay=(f.y/Math.sqrt(b.mass)-ry*gravity)*forceScale+(ty-b.vy)*o.damping;
+   // Non-linked siblings still share their local hub. This soft outer orbit
+   // spring prevents stronger sibling repulsion from dissolving the cluster;
+   // it never resets positions or changes a relationship weight.
+   if(!b.isHub&&r>o.clusterOrbitRadius){const inward=(r-o.clusterOrbitRadius)*o.clusterCohesion;ax-=rx/r*inward*forceScale;ay-=ry/r*inward*forceScale;}
    ax+=(b.x<bounds.left?bounds.left-b.x:b.x>bounds.right?bounds.right-b.x:0)*.15;
    ay+=(b.y<bounds.top?bounds.top-b.y:b.y>bounds.bottom?bounds.bottom-b.y:0)*.15;
+   // Anticipate boundaries rather than letting stronger repulsion pile up at
+   // their exact coordinates. These forces do not edit stored or current x/y.
+   const wall=distance=>o.wallStrength*Math.max(0,1-Math.max(0,distance)/Math.max(1,o.wallMargin))**2;
+   ax+=wall(b.x-bounds.left)-wall(bounds.right-b.x);
+   ay+=wall(b.y-bounds.top)-wall(bounds.bottom-b.y);
    b.vx=finite(b.vx+ax*dt);b.vy=finite(b.vy+ay*dt);
    const cap=orbit&&b.isHub?Math.min(speedLimit,1.4):speedLimit;let magnitude=Math.hypot(b.vx,b.vy);
    if(magnitude>cap){b.vx*=cap/magnitude;b.vy*=cap/magnitude;magnitude=cap;}
    const min=orbit&&speed>0?(b.isHub?Math.min(.25,o.minSpeed):o.minSpeed):0;
    if(magnitude<min){const direction=magnitude>.001?{x:b.vx/magnitude,y:b.vy/magnitude}:{x:r>1?-ry/r:Math.cos(angle),y:r>1?rx/r:Math.sin(angle)};b.vx=direction.x*min;b.vy=direction.y*min;}
-   const nx=b.x+b.vx*dt,ny=b.y+b.vy*dt;b.x=b.x>=bounds.left&&b.x<=bounds.right?clamp(nx,bounds.left,bounds.right):nx;b.y=b.y>=bounds.top&&b.y<=bounds.bottom?clamp(ny,bounds.top,bounds.bottom):ny;
+   // Smooth outward velocity damping has a bounded step smaller than remaining
+   // clearance. No coordinate clipping or snap when a boundary is approached.
+   if(b.x>=bounds.left&&b.x<=bounds.right){const clearance=b.vx<0?b.x-bounds.left:bounds.right-b.x;if(clearance<o.wallMargin)b.vx/=1+Math.abs(b.vx)*dt/Math.max(1e-9,clearance);}
+   if(b.y>=bounds.top&&b.y<=bounds.bottom){const clearance=b.vy<0?b.y-bounds.top:bounds.bottom-b.y;if(clearance<o.wallMargin)b.vy/=1+Math.abs(b.vy)*dt/Math.max(1e-9,clearance);}
+   b.x+=b.vx*dt;b.y+=b.vy*dt;
   }
  }
  /** First-entry layout only: deterministic community slots and local orbits.
