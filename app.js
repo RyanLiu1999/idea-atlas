@@ -1,9 +1,10 @@
-import { PointField } from './point-field.js?v=5';
-import { stageDocumentFiles, positionForIdea } from './ingest.mjs?v=5';
-import { createWorkspaceStore } from './workspace-store.mjs?v=5';
-import { renderDocument } from './document-view.mjs?v=5';
-import { relationScore, buildSimilarityLinks } from './relations.mjs?v=5';
-import { computeCentralityMetrics } from './galaxy.mjs?v=5';
+import { PointField } from './point-field.js?v=6';
+import { stageDocumentFiles, positionForIdea } from './ingest.mjs?v=6';
+import { createWorkspaceStore } from './workspace-store.mjs?v=6';
+import { renderDocument } from './document-view.mjs?v=6';
+import { relationScore, buildSimilarityLinks } from './relations.mjs?v=6';
+import { computeCentralityMetrics } from './galaxy.mjs?v=6';
+import { createImmersiveShell } from './shell.mjs?v=6';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const cats={'机器人与具身智能':{color:'#7d99bc',tint:'#edf2f8',glyph:'◈'},'强化学习':{color:'#aaa0ca',tint:'#f1eff8',glyph:'◇'},'人工智能':{color:'#78ab98',tint:'#edf5f1',glyph:'✧'},'产品与体验':{color:'#7d93ca',tint:'#eef1fc',glyph:'◈'},'知识与思考':{color:'#a28bbf',tint:'#f3eef9',glyph:'⌘'},'未分类':{color:'#acb1ba',tint:'#f1f2f5',glyph:'○'}};
 const seeds=[
@@ -29,7 +30,7 @@ state.trash=Array.isArray(state.trash)?state.trash:[];
 state.documents=Array.isArray(state.documents)?state.documents:[];
 if (typeof state.showExamples !== 'boolean') state.showExamples = !state.documents.length;
 let view='network',category='',selected=null,focus=false,listMode=false,toastTimer;
-let field;
+let field, shell;
 let detailReturnRowId = null;
 let graphRevision = 0, networkCache;
 async function save() {
@@ -85,6 +86,7 @@ function links() {
 function documentFor(node) { return state.documents.find(doc => doc.id === node?.documentId); }
 function filtered(){const q=$('#search').value.trim().toLowerCase();let arr=collection().filter(n=>(!category||n.category===category)&&(!q||[n.title,n.summary,n.category,n.type,n.scenario,...n.tags,documentFor(n)?.text||''].join(' ').toLowerCase().includes(q)));if(focus&&selected){const id=new Set([selected,...links().filter(l=>l.a.id===selected||l.b.id===selected).flatMap(l=>[l.a.id,l.b.id])]);arr=arr.filter(n=>id.has(n.id));}return arr;}
 function render() {
+  shell?.syncView(view, listMode);
   renderNav();
   const graphVisible = view === 'network' && !listMode;
   $('#canvasShell').hidden = !graphVisible;
@@ -97,7 +99,7 @@ function render() {
   else if (view === 'library' || listMode) renderList();
   else renderGraph();
   const titles = {
-    network: ['思想星系', '让联结，汇成你的思想星系。', '相近的思想彼此吸引，让每一个联结都闪闪发光。'],
+    network: ['思想星系', '让联结，汇成你的思想星系。', '多个局部引力中心，让相关想法各自环绕、彼此相连。'],
     library: ['全部 Ideas', '每一个想法，都值得被看见。', '从完整文库中，重新找到你的灵感。'],
     inbox: ['待审核', '让新的灵感，有序进入。', '确认原文、摘要与分类，再让想法进入网络。']
   };
@@ -123,9 +125,10 @@ function renderGraph() {
   const nodes = filtered();
   const ids = new Set(nodes.map(node => node.id));
   const visibleLinks = links().filter(link => ids.has(link.a.id) && ids.has(link.b.id));
-  $('#graphStats').textContent = `${nodes.length} 个想法 · ${visibleLinks.length} 条相似建议`;
   $('#emptyGraph').hidden = nodes.length > 0;
   field.sync(nodes, visibleLinks, selected, currentNetwork());
+  const summary = field.getNetworkSummary();
+  $('#graphStats').textContent = `${nodes.length} 个想法 · ${summary.clusters} 个局部星团 · ${visibleLinks.length} 条相似建议`;
 }
 function closeDetail(restoreFocus = false) {
   selected = null;
@@ -143,6 +146,7 @@ function showDetail(n) {
   field.setSelected(n.id);
   const c = cats[n.category] || cats['未分类'], doc = documentFor(n);
   const connection = currentNetwork().metrics.get(n.id);
+  const attractor = view === 'network' && !listMode ? field.getAttractorInfo(n.id) : null;
   const related = collection().filter(b => b.id !== n.id).map(b => ({b, ...score(n,b)}))
     .filter(link => link.value >= +$('#threshold').value && link.value > 0).sort((a,b) => b.value-a.value).slice(0,4);
   $('#detail').hidden = false;
@@ -154,11 +158,12 @@ function showDetail(n) {
     <div class="field"><label>适用场景</label><span>${esc(n.scenario)}</span></div>
     <div class="field"><label>关键词</label><span>${n.tags.map(esc).join(' · ') || '待补充'}</span></div>
     <div class="field"><label>星系联结</label><span>${connection?.degree || 0} 个相似连接 · 光芒随网络连接度变化</span></div>
+    ${attractor && connection?.degree ? `<div class="field"><label>${attractor.isHub ? '局部引力中心' : '当前环绕中心'}</label><span>${attractor.isHub ? '连接越多，引力越强；带动相关想法缓慢环绕' : esc(attractor.hubTitle)}</span></div>` : ''}
     <div class="field"><label>状态</label><span>${esc(n.status)} · ${n.pinned ? '位置已固定' : '位置可调整'}</span></div>
     ${doc && n.evidence?.length ? `<details class="extraction-evidence"><summary>查看属性提取依据</summary>${n.evidence.map(e => `<p><b>${esc(e.value || e.field)}</b><small>${esc(e.excerpt)}</small></p>`).join('')}</details>` : ''}
     <hr><div class="sectionlabel">相似的想法 <span style="float:right;color:#a4acba;font-weight:400">${related.length} 个</span></div>
     ${related.map(link => `<button class="related" data-id="${esc(link.b.id)}"><b>${link.value} / 100</b>${esc(link.b.title)}<small>${esc(link.reasons.join('；'))}</small></button>`).join('') || '<p>当前阈值下暂无相似建议。</p>'}
-    <p class="score-note">按属性与共同术语计算相似度，常见术语权重较低。30 分以上的近邻建议参与吸引，分数越高，吸引越强、理想间距越短；斥力与固定位置会共同影响实际排布。光芒表示完整网络的连接度，不表示正确性或研究价值。连线阈值只筛选显示，不重排星系。</p>
+    <p class="score-note">按属性与共同术语计算相似度，常见术语权重较低。30 分以上的近邻建议参与吸引，连接越多的想法引力越强、光芒越盛；相关星点围绕局部加权平衡中心环绕。星团是探索布局，不代表已验证的主题分类；跨团关联保留原评分，但减弱布局拉力与连线显示。全局距离不能直接作为相似度。光芒不表示正确性或研究价值。连线阈值只筛选显示，不重排星系。</p>
     <div class="sectionlabel">原始来源</div><div class="source">${esc(n.source)}
     <blockquote>${esc(n.quote || n.summary)}</blockquote>
     ${doc ? `<span>${doc.chars.toLocaleString()} 字符 · ${doc.sections.length} 个章节 · 完整原文保存在本机</span><button class="secondary source-open" id="readDocument">阅读完整文档 ↗</button>` : n.status === '示例' ? '此内容为设计演示样例。' : '手动记录或旧版候选；未关联完整文档。'}</div>
@@ -181,6 +186,7 @@ function showDetail(n) {
 }
 
 function modal(html, variant = '') {
+  shell?.closeAll({ restoreFocus: false });
   field.setModal(true);
   $('#modal').className = variant;
   $('#modalBody').innerHTML = html;
@@ -347,7 +353,7 @@ function showDocument(doc, initialQuery = '') {
 }
 
 function download(name,body,type='application/json'){const url=URL.createObjectURL(new Blob([body],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function guide(){modal(`${closer}<h2>让研究，慢慢连成网络。</h2><ol class="guide-list"><li>悬停星点：目标停住并高亮，其余星点整体暗淡。点击查看摘要、关键属性与完整来源。</li><li>触屏轻点预览，再次轻点查看详情；键盘 Tab、Enter 和 Escape 也可操作。</li><li>长篇 Markdown / TXT 默认整份生成一个 Idea，保留全部原文与章节。导入后可直接入图并标记待核对，或先进入收件箱。</li><li>搜索会查找想法属性与完整原文。在详情中打开原文，可继续定位命中内容、浏览目录和下载原文件。</li><li>相同内容重复导入会跳过，同名的新内容会保留。人工修改不会被重导覆盖。</li><li>相似建议来自可解释的属性与术语匹配，每个想法选择前三个近邻后合并。匹配越强，吸引力越强、理想间距越短；斥力让光点保持可分辨。常见术语降权，未知属性不计分。</li><li>光点缓慢环绕，光芒大小与亮度随完整网络中的连接度变化。连线阈值、搜索与主题筛选只改变显示，已有运动位置保持连续。拖动保存空间锚点，固定后保持静止；动画不会改写保存坐标。</li><li>导出完整备份会包含所有文档原文、想法、待审核记录和布局。可在另一浏览器导入恢复。</li></ol><div class="source">文档仅保存在当前浏览器，不会上传 GitHub。没有云端同步或外部 AI；自动摘要、分类与连线需要核对。公式与 Mermaid 源码保留可读文本，不执行文档中的代码。PDF 尚未支持正文解析，请先转换为 Markdown / TXT。</div>`);}
+function guide(){modal(`${closer}<h2>让研究，慢慢连成网络。</h2><ol class="guide-list"><li>星图铺满主视图。点击左上菜单或靠近左边缘唤起工作空间；点击右上搜索或靠近顶部唤起工具。按 / 或 ⌘K 快速搜索，Escape 收起面板。</li><li>悬停星点：目标停住并高亮，其余星点整体暗淡。点击查看摘要、关键属性与完整来源。</li><li>触屏轻点预览，再次轻点查看详情；键盘 Tab、Enter 和 Escape 也可操作。</li><li>长篇 Markdown / TXT 默认整份生成一个 Idea，保留全部原文与章节。导入后可直接入图并标记待核对，或先进入收件箱。</li><li>搜索会查找想法属性与完整原文。在详情中打开原文，可继续定位命中内容、浏览目录和下载原文件。</li><li>相同内容重复导入会跳过，同名的新内容会保留。人工修改不会被重导覆盖。</li><li>相似建议来自可解释的属性与术语匹配，每个想法选择前三个近邻后合并。团内匹配越强，目标间距越短；跨团连线保留原评分，但减弱布局吸引与显示，让局部星团保持可辨。斥力避免光点重叠。常见术语降权，未知属性不计分。</li><li>高连接度想法成为局部引力中心，相关星点按关联强弱围绕加权平衡位置缓慢环绕；多个中心形成局部星团，星团之间仍保留关联。光芒大小与亮度随完整网络中的连接度变化。连线阈值、搜索与主题筛选只改变显示，已有运动位置保持连续。拖动保存空间锚点，固定后保持静止；动画不会改写保存坐标。</li><li>导出完整备份会包含所有文档原文、想法、待审核记录和布局。可在另一浏览器导入恢复。</li></ol><div class="source">文档仅保存在当前浏览器，不会上传 GitHub。没有云端同步或外部 AI；自动摘要、分类与连线需要核对。公式与 Mermaid 源码保留可读文本，不执行文档中的代码。PDF 尚未支持正文解析，请先转换为 Markdown / TXT。</div>`);}
 field = new PointField({
   colors: cats,
   onOpen(id, keyboard) {
@@ -368,6 +374,21 @@ field = new PointField({
   },
   onClear() { selected = null; focus = false; $('#detail').hidden = true; render(); },
   onNotice: toast
+});
+shell = createImmersiveShell({
+  onViewChange(nextView) {
+    view = nextView; listMode = false;
+    category = ''; focus = false; selected = null;
+    $('#search').value = ''; $('#detail').hidden = true;
+    render();
+    $('#shellMenu').focus({ preventScroll: true });
+  },
+  onBeforeOpen() {
+    field.clearHover(); field.clearPreview();
+    field.focusedId = document.activeElement?.dataset.pointId || null;
+    field.touchPreviewId = null;
+    field.updateEmphasis(); field.paint(); field.wake();
+  }
 });
 $$('.nav').forEach(button => button.onclick = () => {
   view = button.dataset.view;
@@ -403,8 +424,9 @@ $('#workspace').onclick = () => {
 $('#showExamples').onchange = async event => { const show=event.target.checked;if(!await commitWorkspaceChange(draft=>draft.showExamples=show)){event.target.checked=state.showExamples;return;}selected=null;focus=false;$('#detail').hidden=true;render();field.fitView(); };
 $('#export').onclick = () => download('idea-atlas-complete-backup.json', JSON.stringify({ ...state, format: 'idea-atlas-v2', exportedAt:new Date().toISOString() }, null, 2));
 document.addEventListener('keydown', event => {
+  if (event.defaultPrevented) return;
   if (event.key === '/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName) && !$('#modal').open) {
-    event.preventDefault(); $('#search').focus();
+    event.preventDefault(); shell.openTools({ focusSearch: true });
   }
   if (event.key === 'Escape' && !$('#modal').open) {
     if (!$('#detail').hidden) closeDetail(true);

@@ -1,7 +1,7 @@
-import { parseIdeaDocument, normalizeDocumentText } from './import-engine.mjs?v=5';
-import { validateBackup, mergeBackup } from './workspace-store.mjs?v=5';
-import { relationScore } from './relations.mjs?v=5';
-import { chooseOpenPosition } from './motion.mjs?v=5';
+import { parseIdeaDocument, normalizeDocumentText } from './import-engine.mjs?v=6';
+import { validateBackup, mergeBackup } from './workspace-store.mjs?v=6';
+import { relationScore } from './relations.mjs?v=6';
+import { chooseOpenPosition } from './motion.mjs?v=6';
 
 export const IMPORT_LIMITS = Object.freeze({ files:50, fileBytes:5*1024*1024, batchBytes:25*1024*1024 });
 export function positionForIdea(idea, nodes) {

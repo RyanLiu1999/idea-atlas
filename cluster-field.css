@@ -1,0 +1,22 @@
+/* Local nebulae follow real graph hubs. No fixed circles or added node markers. */
+#clusterAuras {
+  position: absolute; inset: 0; z-index: 0;
+  transform-origin: 0 0; pointer-events: none;
+  transition: opacity 220ms ease;
+}
+.cluster-aura { position: absolute; left: 0; top: 0; pointer-events: none; }
+.cluster-aura::before {
+  content: ''; position: absolute;
+  width: var(--aura-width); height: calc(var(--aura-width) * .8);
+  transform: translate(-50%, -50%) rotate(-18deg);
+  background: radial-gradient(ellipse,
+    color-mix(in srgb, var(--aura-color) 85%, transparent),
+    color-mix(in srgb, var(--aura-color) 30%, transparent) 35%, transparent 72%);
+  opacity: var(--aura-light); filter: blur(18px);
+}
+#graph.has-active #clusterAuras { opacity: .35; }
+#canvasShell #edges .connection.is-bridge { opacity: calc(var(--edge-opacity, .3) * .33); }
+#canvasShell #edges .connection.is-bridge.is-related { opacity: .62; }
+#canvasShell #edges .connection.is-bridge.is-dim { opacity: .035; }
+@media (prefers-reduced-motion: reduce) { #clusterAuras { transition: none; } }
+@media (forced-colors: active) { #clusterAuras { display: none; } }

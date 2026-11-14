@@ -1,5 +1,5 @@
-import { hashId, createMotion, commitPosition, zoomCamera, curveBetween, placePointLabels } from './motion.mjs?v=5';
-import { GalaxySimulation, computeCentralityMetrics } from './galaxy.mjs?v=5';
+import { hashId, createMotion, commitPosition, zoomCamera, curveBetween, placePointLabels } from './motion.mjs?v=6';
+import { GalaxySimulation, computeCentralityMetrics } from './galaxy.mjs?v=6';
 
 const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -9,6 +9,12 @@ export class PointField {
     this.graph = document.querySelector('#graph');
     this.world = document.querySelector('#world');
     this.svg = document.querySelector('#edges');
+    this.auraLayer = document.createElement('div');
+    this.auraLayer.id = 'clusterAuras';
+    this.auraLayer.setAttribute('aria-hidden', 'true');
+    this.graph.insertBefore(this.auraLayer, this.svg);
+    this.auras = new Map();
+    this.attractors = new Map();
     this.preview = document.querySelector('#nodePreview');
     this.motionButton = document.querySelector('#motionToggle');
     this.points = new Map();
@@ -59,7 +65,9 @@ export class PointField {
     if (!rect.width || !rect.height) return false;
     this.dimensions = {
       width: rect.width, height: rect.height,
-      worldWidth: Math.max(820, rect.width), worldHeight: Math.max(520, rect.height),
+      // Preserve the viewport's aspect ratio, including a portrait star field.
+      worldWidth: rect.width * Math.max(1, 760 / Math.min(rect.width, rect.height)),
+      worldHeight: rect.height * Math.max(1, 760 / Math.min(rect.width, rect.height)),
     };
     return true;
   }
@@ -90,6 +98,7 @@ export class PointField {
       this.layoutSettled = true;
     }
     this.copySimulatedPositions();
+    this.attractors = new Map(this.networkNodes.map(node => [node.id, this.galaxy.getAttractor(node.id)]));
     const ids = new Set(nodes.map(node => node.id));
     if (this.previewId && !ids.has(this.previewId)) this.clearPreview();
     if (this.hoveredId && !ids.has(this.hoveredId)) this.hoveredId = null;
@@ -115,8 +124,13 @@ export class PointField {
       point.element.style.setProperty('--star-brightness', metric.brightness.toFixed(3));
       point.element.dataset.degree = String(metric.degree);
       point.element.dataset.strength = metric.strength.toFixed(3);
+      const attractor = this.attractors.get(node.id);
+      point.element.dataset.clusterId = attractor?.clusterId || '';
+      point.element.dataset.attractorId = attractor?.hubId || '';
+      point.element.dataset.hub = String(Boolean(attractor?.isHub));
+      point.element.dataset.gravity = (attractor?.gravity || 1).toFixed(3);
       point.element.setAttribute('aria-label', `查看 ${node.title}`);
-      point.element.setAttribute('aria-description', `${metric.degree} 个相似连接；光芒表示网络连接度`);
+      point.element.setAttribute('aria-description', `${metric.degree} 个相似连接${attractor?.isHub && metric.degree ? '；局部引力中心' : ''}；光芒表示网络连接度`);
       point.element.querySelector('.point-label').textContent = node.title;
       point.labelWidth = Math.min(150, Math.max(40, point.element.querySelector('.point-label').scrollWidth));
       point.element.classList.toggle('is-pinned', Boolean(node.pinned));
@@ -129,9 +143,11 @@ export class PointField {
       path.dataset.target = link.b.id;
       path.style.setProperty('--edge-opacity', (.12 + link.value / 190).toFixed(2));
       path.style.strokeWidth = (.45 + link.value / 160).toFixed(2)+'px';
+      path.classList.toggle('is-bridge', this.attractors.get(link.a.id)?.clusterId !== this.attractors.get(link.b.id)?.clusterId);
       return { ...link, path, bend: (hashId(link.a.id + link.b.id) % 25) - 12 };
     });
     this.svg.replaceChildren(...this.edges.map(edge => edge.path));
+    this.syncClusterAuras(ids);
     this.setSelected(selectedId);
     this.updateMotionControl();
     if (!this.initialized) {
@@ -147,6 +163,41 @@ export class PointField {
       const point = this.points.get(id);
       if (point) point.motion.position = { ...position };
     }
+  }
+
+  getAttractorInfo(id) {
+    const info = this.galaxy.getAttractor(id);
+    if (!info) return null;
+    return { ...info, hubTitle: this.points.get(info.hubId)?.node.title || '' };
+  }
+
+  getNetworkSummary() {
+    const visibleIds = new Set(this.visible.keys());
+    const groups = [...this.galaxy.clusters.values()].filter(group => group.members.length > 1 && group.members.some(id => visibleIds.has(id)));
+    return { clusters: groups.length, hubs: groups.reduce((sum, group) => sum + group.hubIds.length, 0) };
+  }
+
+  syncClusterAuras(visibleIds) {
+    // A quiet glow follows actual hubs; it is not an extra idea or a hit target.
+    if (!this.auraLayer) return;
+    const next = new Map();
+    for (const group of this.galaxy.clusters.values()) {
+      if (group.members.length < 2 || !group.members.some(id => visibleIds.has(id))) continue;
+      for (const hubId of group.hubIds) {
+        const hub = this.points.get(hubId), metric = this.metrics.get(hubId);
+        if (!hub || !metric?.degree) continue;
+        const element = this.auras.get(hubId)?.element || document.createElement('div');
+        element.className = 'cluster-aura';
+        element.dataset.hubId = hubId;
+        element.dataset.clusterId = group.id;
+        element.style.setProperty('--aura-color', (this.options.colors[hub.node.category] || this.options.colors['未分类']).color);
+        element.style.setProperty('--aura-width', `${Math.max(210, group.radius * 2.9)}px`);
+        element.style.setProperty('--aura-light', (.06 + metric.centrality * .065).toFixed(3));
+        next.set(hubId, { element });
+      }
+    }
+    this.auras = next;
+    this.auraLayer.replaceChildren(...[...next.values()].map(aura => aura.element));
   }
 
   rescaleSimulation(previous) {
@@ -237,6 +288,10 @@ export class PointField {
     for (const edge of this.edges) {
       const a = this.visible.get(edge.a.id), b = this.visible.get(edge.b.id);
       if (a && b) edge.path.setAttribute('d', curveBetween(a.motion.position, b.motion.position, edge.bend));
+    }
+    for (const [id, aura] of this.auras || []) {
+      const center = this.galaxy.getPosition(id);
+      if (center) aura.element.style.transform = `translate(${center.x.toFixed(3)}px, ${center.y.toFixed(3)}px)`;
     }
     if (this.previewId) this.positionPreview();
   }
@@ -340,8 +395,10 @@ export class PointField {
     const node = point.node;
     const color = this.options.colors[node.category] || this.options.colors['未分类'];
     const connections = this.metrics.get(id)?.degree || 0;
+    const attractor = this.getAttractorInfo(id);
+    const role = connections && attractor?.isHub ? '局部引力中心' : node.type;
     this.preview.style.setProperty('--preview-color', color.color);
-    this.preview.innerHTML = `<div class="preview-eyebrow"><i></i>${safe(node.category)}<span>${connections} 条相似关联</span></div><h3>${safe(node.title)}</h3><p id="previewSummary">${safe(node.summary)}</p><div class="preview-footer"><span>${safe(node.type)}</span><button type="button" id="previewOpen">查看详情 <span aria-hidden="true">↗</span></button></div>`;
+    this.preview.innerHTML = `<div class="preview-eyebrow"><i></i>${safe(node.category)}<span>${connections} 条相似关联</span></div><h3>${safe(node.title)}</h3><p id="previewSummary">${safe(node.summary)}</p><div class="preview-footer"><span>${safe(role)}</span><button type="button" id="previewOpen">查看详情 <span aria-hidden="true">↗</span></button></div>`;
     this.preview.hidden = false;
     this.preview.classList.remove('is-compact');
     point.element.setAttribute('aria-describedby', 'previewSummary');
@@ -489,9 +546,9 @@ export class PointField {
     this.motionButton.setAttribute('aria-pressed', String(stopped));
     this.motionButton.innerHTML = this.reduced.matches ? '<span aria-hidden="true">◉</span> 已减少动态' : stopped ? '<span aria-hidden="true">▷</span> 恢复环绕' : '<span aria-hidden="true">Ⅱ</span> 暂停环绕';
     this.graph.classList.toggle('motion-stopped', stopped);
-    document.querySelector('#motionStatus').textContent = stopped ? '静止探索' : '星系缓慢环绕';
-    document.querySelector('#fieldInstruction').textContent = this.coarse.matches ? '轻点聚焦一颗星 · 再次轻点查看详情' : '悬停聚焦一颗星 · 点击深入 · 光芒映照联结';
-    document.querySelector('#graphInstructions').textContent = this.coarse.matches ? '轻点预览，其他星点暗淡，再次轻点查看详情。拖动空白平移，可切换列表浏览。' : '星点按相似关系缓慢吸引并环绕，光芒大小表示连接度。悬停或 Tab 聚焦可暂停目标并预览，其他星点暗淡。点击或 Enter 查看详情，Escape 返回。';
+    document.querySelector('#motionStatus').textContent = stopped ? '静止探索' : '局部星团缓慢环绕';
+    document.querySelector('#fieldInstruction').textContent = this.coarse.matches ? '轻点预览 · 再次轻点深入 · 顶部按钮唤起工具' : '悬停聚焦 · 点击深入 · 靠近边缘唤起工具';
+    document.querySelector('#graphInstructions').textContent = this.coarse.matches ? '相关星点围绕局部引力中心缓慢环绕。轻点预览，其他星点暗淡，再次轻点查看详情。拖动空白平移，点击左上菜单或右上搜索打开工具。' : '相关星点围绕多个局部加权平衡中心缓慢环绕，光芒大小表示连接度。悬停或 Tab 聚焦可暂停目标并预览，其他星点暗淡。点击或 Enter 查看详情，Escape 返回。点击左上菜单或右上搜索打开工具，也可悬停左边缘或顶部。';
   }
 
   startGesture(event) {
@@ -622,6 +679,7 @@ export class PointField {
     const transform = `translate(${x}px, ${y}px) scale(${scale})`;
     this.world.style.transform = transform;
     this.svg.style.transform = transform;
+    if (this.auraLayer) this.auraLayer.style.transform = transform;
     this.graph.style.setProperty('--hit-size', `${44 / scale}px`);
     this.graph.style.setProperty('--inverse-scale', String(1 / scale));
     document.querySelector('#zoomLabel').textContent = Math.round(scale * 100) + '%';
