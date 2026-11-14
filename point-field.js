@@ -1,4 +1,4 @@
-import { hashId, createMotion, advanceMotion, moveAnchor, commitPosition, zoomCamera, curveBetween, placePointLabels } from './motion.mjs?v=3';
+import { hashId, createMotion, advanceMotion, moveAnchor, commitPosition, zoomCamera, curveBetween, placePointLabels } from './motion.mjs?v=4';
 
 const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 

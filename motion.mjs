@@ -71,7 +71,7 @@ export function curveBetween(a, b, bend = 0) {
 
 // Only new ideas receive a vacant anchor. Never rearrange existing ideas to
 // create room: their saved positions are part of the user's spatial memory.
-export function chooseOpenPosition(nodes, origin = { x: .44, y: .44 }) {
+export function chooseOpenPosition(nodes, origin = { x: .44, y: .44 }, minimumClearance = 62) {
   let best = origin, clearance = -1;
   for (let index = 0; index < 160; index++) {
     const radius = .033 * Math.sqrt(index);
@@ -79,7 +79,7 @@ export function chooseOpenPosition(nodes, origin = { x: .44, y: .44 }) {
     const candidate = { x: origin.x + Math.cos(angle) * radius, y: origin.y + Math.sin(angle) * radius };
     if (candidate.x < .07 || candidate.x > .93 || candidate.y < .07 || candidate.y > .91) continue;
     const distance = nodes.length ? Math.min(...nodes.map(node => Math.hypot((candidate.x - node.x) * 692, (candidate.y - node.y) * 384))) : Infinity;
-    if (distance >= 62) return candidate;
+    if (distance >= minimumClearance) return candidate;
     if (distance > clearance) { best = candidate; clearance = distance; }
   }
   return best;

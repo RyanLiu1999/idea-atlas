@@ -1,4 +1,4 @@
-/* Luminous ideas with quiet names; summaries appear on approach. */
+/* Diffuse light, quiet names. The invisible button preserves its 44px hit area. */
 .canvas-shell {
   background: #fbfcff;
   border-color: #e4e8f0;
@@ -59,40 +59,54 @@
 .idea-point:hover { filter: none; }
 .point-core, .point-halo, .point-orbit {
   position: absolute;
-  border-radius: 50%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   pointer-events: none;
 }
 .point-core {
   width: calc(var(--core-size) * var(--inverse-scale));
   height: calc(var(--core-size) * var(--inverse-scale));
-  border-radius: 0;
-  background: radial-gradient(ellipse 16% 16% at 50% 50%, #fff 0%, #fff 14%, color-mix(in srgb, var(--point-color) 70%, white) 35%, transparent 95%);
-  filter: drop-shadow(0 0 3px var(--point-color));
+  /* Color carries the center: no white hotspot, specular highlight or rim. */
+  background: radial-gradient(ellipse 50% 46% at 50% 50%,
+    color-mix(in srgb, var(--point-color) 82%, transparent) 0%,
+    color-mix(in srgb, var(--point-color) 70%, transparent) 12%,
+    color-mix(in srgb, var(--point-color) 45%, transparent) 30%,
+    color-mix(in srgb, var(--point-color) 20%, transparent) 52%,
+    color-mix(in srgb, var(--point-color) 5%, transparent) 74%,
+    transparent 100%);
+  filter: blur(calc(.85px * var(--inverse-scale)));
   z-index: 2;
   transition: opacity 200ms, transform 200ms;
 }
 .point-core::before, .point-core::after {
-  content: ''; position: absolute; pointer-events: none;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--point-color) 60%, transparent) 25%, #fff 49%, #fff 51%, color-mix(in srgb, var(--point-color) 60%, transparent) 75%, transparent);
-  filter: blur(.25px);
+  /* Explicitly remove the previous horizontal/vertical star rays. */
+  content: none;
+  display: none;
 }
-.point-core::before { width: 100%; height: calc(1px * var(--inverse-scale)); top: calc(50% - .5px * var(--inverse-scale)); left: 0; }
-.point-core::after { width: 100%; height: calc(1px * var(--inverse-scale)); top: calc(50% - .5px * var(--inverse-scale)); left: 0; transform: rotate(90deg) scaleX(.78); }
 .point-halo {
   width: calc(var(--halo-size) * var(--inverse-scale));
   height: calc(var(--halo-size) * var(--inverse-scale));
-  border-radius: 0;
-  background: radial-gradient(ellipse 47% 35% at 50% 50%, color-mix(in srgb, var(--point-color) 26%, transparent) 0%, color-mix(in srgb, var(--point-color) 12%, transparent) 30%, transparent 75%);
-  filter: blur(3px);
-  opacity: .9;
+  background: radial-gradient(ellipse 48% 42% at 50% 50%,
+    color-mix(in srgb, var(--point-color) 18%, transparent) 0%,
+    color-mix(in srgb, var(--point-color) 12%, transparent) 22%,
+    color-mix(in srgb, var(--point-color) 5%, transparent) 47%,
+    color-mix(in srgb, var(--point-color) 1%, transparent) 72%,
+    transparent 100%);
+  filter: blur(calc(2.5px * var(--inverse-scale)));
+  opacity: 1;
   transition: opacity 200ms;
 }
 .point-orbit {
-  width: calc(42px * var(--inverse-scale));
-  height: calc(42px * var(--inverse-scale));
-  border: 0; border-radius: 0;
-  background: radial-gradient(ellipse 36% 30% at 50% 50%, color-mix(in srgb, var(--point-color) 28%, transparent), transparent 95%);
-  filter: blur(4px);
+  /* A second diffuse field marks interaction, never a circular outline. */
+  width: calc(48px * var(--inverse-scale));
+  height: calc(48px * var(--inverse-scale));
+  background: radial-gradient(ellipse 48% 43% at 50% 50%,
+    color-mix(in srgb, var(--point-color) 22%, transparent) 0%,
+    color-mix(in srgb, var(--point-color) 12%, transparent) 32%,
+    color-mix(in srgb, var(--point-color) 3%, transparent) 66%,
+    transparent 100%);
+  filter: blur(calc(2.5px * var(--inverse-scale)));
   opacity: 0;
   transition: opacity 200ms;
 }
@@ -110,14 +124,20 @@
   transition: color 200ms, opacity 200ms;
 }
 .idea-point.is-selected, .idea-point.is-hovered { z-index: 3; }
-.idea-point.is-selected .point-core, .idea-point.is-hovered .point-core { transform: scale(1.17); }
+.idea-point.is-selected .point-core, .idea-point.is-hovered .point-core, .idea-point:focus-visible .point-core { transform: scale(1.08); }
 .idea-point.is-selected .point-orbit, .idea-point.is-hovered .point-orbit, .idea-point:focus-visible .point-orbit { opacity: 1; }
 .idea-point.is-neighbor .point-orbit { opacity: .5; }
-.idea-point.is-selected .point-label, .idea-point.is-hovered .point-label { color: #646b79; }
+.idea-point.is-selected .point-label, .idea-point.is-hovered .point-label, .idea-point:focus-visible .point-label { color: #646b79; }
 .idea-point.is-dim .point-core { opacity: .5; }
 .idea-point.is-dim .point-halo { opacity: .3; }
 .idea-point.is-dim .point-label { opacity: .68; }
-.idea-point:focus-visible { outline: calc(1.5px * var(--inverse-scale)) solid #007aff8c; outline-offset: calc(2px * var(--inverse-scale)); }
+.idea-point:focus-visible { outline: none; }
+.idea-point:focus-visible .point-label {
+  text-decoration-line: underline;
+  text-decoration-color: #5779a6;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
 .idea-point.is-pinned .point-label::after { content: ' ·'; color: #a3a7b0; }
 .cluster {
   z-index: 0;
@@ -212,6 +232,10 @@
 @media (prefers-reduced-motion: reduce) {
   .node-preview { animation: none; }
   .idea-point *, #edges .connection { transition: none; }
+}
+@media (forced-colors: active) {
+  .idea-point:focus-visible .point-label { outline: 2px solid Highlight; outline-offset: 3px; }
+  .point-label { color: ButtonText; text-shadow: none; }
 }
 
 .heading, .toolbar, .canvas-top, .field-instruction { user-select: none; }

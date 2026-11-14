@@ -1,0 +1,96 @@
+/* Local research library, using the same quiet iOS material and typography. */
+.example-switch { display: flex; align-items: center; gap: 9px; color: #8e8e96; font-size: 11px; padding: 10px 15px 0; cursor: pointer; }
+.example-switch input { accent-color: #007aff; width: 14px; height: 14px; }
+.sidebar .category { min-height: 38px; }
+.sidebar .category span:nth-child(2) { font-size: 12px; }
+.sidebar .navlabel.split { margin-top: 25px; }
+.sidebar-note { margin-top: auto; }
+.sidebar-bottom { flex-wrap: wrap; }
+.cluster[hidden] { display: none; }
+.review-note { color: #7d7970; background: #f2efe7; font-size: 11px; line-height: 1.7; padding: 12px 14px; border-radius: 13px; margin: 15px 0 5px; }
+.source .source-open { display: block; margin-top: 15px; width: 100%; font-size: 12px; }
+.detail .source blockquote { max-height: 150px; overflow: auto; white-space: pre-wrap; }
+.extraction-evidence { margin: 17px 0; font-size: 12px; color: #8e8e93; }
+.extraction-evidence summary { cursor: pointer; min-height: 38px; display: list-item; }
+.extraction-evidence p { padding: 11px; background: #eeeff4; border-radius: 10px; }
+.extraction-evidence small { display: block; margin-top: 7px; line-height: 1.7; overflow-wrap: anywhere; }
+.source-inline { background: #eeeff4; white-space: pre-wrap; max-height: 290px; overflow: auto; padding: 15px; font: 12px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.pending { align-items: flex-start; }
+.pending-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; min-width: 140px; }
+.dropzone.drag-over { background: #e9f2ff; border-color: #007aff; }
+.dropzone span { line-height: 1.8; }
+.upload-symbol { font-size: 30px; color: #7297bd; }
+dialog progress { width: 100%; accent-color: #007aff; height: 8px; margin: 15px 0; }
+#importDestination { width: 100%; }
+#modal.import-results-dialog { width: 700px; }
+.import-results { list-style: none; margin: 20px 0; padding: 0; max-height: 53dvh; overflow: auto; }
+.import-results li { margin-bottom: 10px; padding: 15px 17px; border-radius: 14px; background: #f2f2f7; }
+.import-results strong { display: block; font-size: 12px; color: #8e8e93; margin-right: 65px; overflow-wrap: anywhere; }
+.import-results b { display: block; font-size: 13px; margin-top: 8px; line-height: 1.6; font-weight: 600; }
+.import-results p { font-size: 12px; margin: 8px 0 0; }
+.import-results small { color: #93939d; display: block; font-size: 11px; line-height: 1.7; margin-top: 8px; }
+.result-status { float: right; color: #6b9b83; font-size: 11px; }
+.result-error .result-status { color: #b57b70; }
+.result-duplicate .result-status { color: #8e8e93; }
+#modal.reader-dialog { width: min(1160px, calc(100vw - 40px)); max-width: none; max-height: calc(100dvh - 40px); }
+.reader-dialog #modalBody { padding: 30px 32px 24px; }
+.reader-heading { padding-right: 25px; }
+.reader-heading h2 { font-size: 25px; line-height: 1.45; letter-spacing: -.7px; margin: 10px 0; overflow-wrap: anywhere; }
+.reader-heading p { font-size: 12px; margin: 8px 0 20px; }
+.reader-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px 0 18px; border-bottom: 1px solid #e5e5ea; }
+.reader-toolbar #documentSearch { flex: 1; min-width: 120px; width: auto; margin: 0; min-height: 40px; font-size: 13px; }
+.reader-toolbar button { min-height: 40px; padding: 0 13px; font-size: 12px; white-space: nowrap; }
+.reader-search-label { position: absolute; clip-path: inset(50%); height: 1px; width: 1px; overflow: hidden; }
+#documentMatchCount { font-size: 11px; min-width: 55px; text-align: center; color: #8e8e93; }
+#toggleRaw[aria-pressed=true] { background: #dfebfc; color: #007aff; }
+.reader-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 290px; }
+.document-toc { padding: 20px 16px 0 0; max-height: 57dvh; overflow: auto; border-right: 1px solid #e5e5ea; }
+.document-toc strong { display: block; padding: 0 12px 12px; font-size: 11px; color: #8e8e93; font-weight: 500; }
+.document-toc button { display: block; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 8px; color: #8a8a93; font-size: 11px; line-height: 1.6; padding: 8px 10px; overflow-wrap: anywhere; }
+.document-toc button:hover { color: #007aff; background: #eef3fc; }
+.document-content { max-height: 57dvh; padding: 8px 0 24px 27px; overflow: auto; color: #484851; font-size: 14px; line-height: 1.95; overflow-wrap: anywhere; scroll-padding-top: 20px; }
+.document-content h1, .document-content h2, .document-content h3, .document-content h4, .document-content h5, .document-content h6 { color: #282832; line-height: 1.6; letter-spacing: -.3px; margin: 25px 0 13px; scroll-margin-top: 20px; }
+.document-content h1 { font-size: 24px; }.document-content h2 { font-size: 21px; }.document-content h3 { font-size: 18px; }.document-content h4 { font-size: 16px; }
+.document-content p, .document-content li { color: inherit; font-size: inherit; line-height: inherit; }
+.document-content p { margin: 13px 0; }
+.document-content ul, .document-content ol { padding-left: 23px; }
+.document-content li { margin: 7px 0; }
+.document-content blockquote { margin: 18px 0; padding: 2px 17px; border-left: 3px solid #b9cbe2; background: #f5f7fb; border-radius: 0 10px 10px 0; }
+.document-content a { color: #007aff; text-underline-offset: 3px; }
+.document-content pre { max-width: 100%; overflow: auto; white-space: pre-wrap; background: #f2f2f7; padding: 16px; border-radius: 12px; font: 12px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.document-content pre code { background: none; padding: 0; }
+.document-content code { background: #eeeff4; padding: 2px 4px; border-radius: 4px; font: 12px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.document-content .document-table { max-width: 100%; overflow: auto; margin: 18px 0; border: 1px solid #e5e5ea; border-radius: 12px; }
+.document-content table { border-collapse: collapse; min-width: 100%; font-size: 12px; line-height: 1.7; }
+.document-content th, .document-content td { padding: 12px 14px; border-bottom: 1px solid #e5e5ea; border-right: 1px solid #e5e5ea; min-width: 90px; vertical-align: top; }
+.document-content th { background: #f2f2f7; font-weight: 600; }
+.document-content tr:last-child td { border-bottom: none; }
+.document-content .raw-document { background: transparent; padding: 4px 0; font-size: 12px; line-height: 1.9; }
+.document-content mark { color: inherit; background: #fff0ab; border-radius: 3px; }
+.document-content mark.active-match { color: #55420a; background: #f9d977; box-shadow: 0 0 0 2px #f9d977; }
+.document-image-placeholder { font-size: 12px; color: #8e8e93; }
+@media (max-width: 760px) {
+  #modal.reader-dialog { width: calc(100vw - 12px); max-height: calc(100dvh - 20px); }
+  .reader-dialog #modalBody { padding: 22px 18px 16px; }
+  .reader-heading h2 { font-size: 19px; }
+  .reader-heading p { font-size: 11px; }
+  .reader-toolbar { gap: 6px; padding-bottom: 12px; }
+  .reader-toolbar #documentSearch { flex-basis: calc(100% - 70px); min-height: 44px; font-size: 16px; }
+  .reader-toolbar button { min-height: 44px; }
+  .reader-layout { display: block; }
+  .document-toc { display: flex; gap: 5px; padding: 13px 0; max-height: none; overflow-x: auto; border-right: 0; border-bottom: 1px solid #e5e5ea; }
+  .document-toc strong { display: none; }
+  .document-toc button { min-width: 135px; max-width: 180px; max-height: 55px; overflow: hidden; flex-shrink: 0; font-size: 10px; background: #f2f2f7; padding: 6px 10px !important; }
+  .document-content { padding: 6px 1px 15px; max-height: 52dvh; font-size: 14px; }
+  .document-content h1 { font-size: 21px; }.document-content h2 { font-size: 19px; }.document-content h3 { font-size: 17px; }
+  .import-results { max-height: 51dvh; }
+  .pending { display: block; }
+  .pending-actions { margin-top: 14px; justify-content: flex-start; }
+}
+@media (max-height: 850px) and (min-width: 761px) {
+  .sidebar .navlabel.split { margin-top: 16px; }
+  .sidebar-note { padding: 10px 14px; }
+  .sidebar-note p { margin: 5px 0; }
+  .sidebar-note>span { display: none; }
+  .sidebar .category { min-height: 34px; padding-top: 6px; padding-bottom: 6px; }
+}
